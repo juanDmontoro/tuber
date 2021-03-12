@@ -1,0 +1,131 @@
+---
+title: "Using tuber"
+author: "Juan D. Montoro-Pons"
+date: "12/3/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Setting up the environment
+
+```{r include=FALSE}
+my_ID <-
+my_SECRET <- 
+```
+
+First, we load the needed libraries (besides tuber):
+
+```{r}
+library(tuber)
+library(tidyverse)
+library(purrr)
+```
+ 
+Next we log into the YouTube API:
+
+```{r}
+yt_oauth(app_id=my_ID,app_secret = my_SECRET,token='') # include account details
+```
+
+## The basics: identify channels and playlists 
+
+The Primavera Sound Youtube channel includes many playlists. First, lets inspect what information we get from the most basic search:
+```{r}
+firstSearch <- yt_search("Primavera Sound")
+```
+
+It looks plenty. Lets take a look at the dataframe
+
+```{r}
+glimpse(firstSearch)
+```
+As it can be seen (column `channelTitle`) the search has retrieved contents from different YouTube channels. Based on this, we might want to to filter information for one specific channel:
+
+```{r}
+firstSearch %>% filter(channelTitle=="Primavera Sound") %>% select(video_id,channelId,channelTitle) %>% head()
+```
+
+Once we identify the ID of the channel, we can use it to retrieve the main resources:
+
+```{r}
+psResources <- list_channel_resources(filter = c(channel_id = "UCCEQawv6g9BaBmzHjnCICew"), part="contentDetails")
+```
+
+The most important is the ID to the uploaded playlists in this particular channel:
+
+```{r}
+playlistId <- psResources$items[[1]]$contentDetails$relatedPlaylists$uploads
+```
+
+Using this ID, we can obtain all playlists uploaded:
+
+```{r}
+lists <- get_playlists(filter=c(channel_id="UCCEQawv6g9BaBmzHjnCICew"))
+```
+
+We may want to extract all the information about playlists. Nnote it is stored as a (rather complex) list in the output of `get_playlists()`. We first will create a function to *flatten* the list items and transform them into rows of a dataframe. Later we use `map_dfr()` to apply this function to all the elements in the list and bind them as rows:
+
+```{r}
+fromList2DF <- function(objeto){
+  as.data.frame(objeto)
+}
+playlists <- map_dfr(lists$items,fromList2DF)
+names(playlists)
+dim(playlists)
+```
+So overall, we have 37 uploaded playlists. The resulting dataframe has a large amount of irrelevant information. We select the only interesting variables:
+```{r}
+playlists <- playlists%>%select(str_which(names(playlists),"^id|published|title|Title|description"))
+playlists%>% head()
+```
+
+### The videos 
+
+Once we have identified the playlists we can also retrieve the videos using `get_playlist_items()`. By default it retrieves a max of 50 playlists. Setting max_results to any value larger than that will return ALL playlists:
+
+```{r}
+vids <- get_playlist_items(filter=c(playlist_id=playlistId),max_results=100)
+vids%>%glimpse
+vids%>%head()
+
+```
+
+In this case we see that there are 412 uploaded videos to the 37 playlists. We have information regarding when the video was published and its id (videoID). The latter allows us to retrieve statistics about the videos:
+
+```{r}
+vid_ids <- as.vector(vids$contentDetails.videoId) # vector of IDS (412)
+
+get_all_stats <- function(id) { # function to be applied to the list of all IDS obtained in previous step
+  get_stats(id)                 # this tuber function retrieves stats from ONE video
+} 
+
+videoStats <- map_df(vid_ids,get_all_stats)
+```
+
+There are two more features we might be interested in: 
+1. Information about a video: `get_video_details()`
+2. Comments: `get_all_comments()`   
+
+First information:
+```{r}
+video_details <- map(vid_ids, get_video_details)
+```
+
+Second, comments
+
+```{r}
+video_comments <- map_df(vids_id, get_all_comments)
+```
+
+## Saving results
+
+At this point we have collected a lot of information. Let us save what we have so far:
+```{r}
+save(resultado,file="data/playlists_1203.rda")
+save(videoStats,file="data/videoStats_1203.rda")
+save(vids,file="data/videos_1203.rda")
+```
+
