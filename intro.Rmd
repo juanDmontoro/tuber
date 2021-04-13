@@ -84,7 +84,7 @@ playlists%>% head()
 
 ### The videos 
 
-Once we have identified the playlists we can also retrieve the videos using `get_playlist_items()`. By default it retrieves a max of 50 playlists. Setting max_results to any value larger than that will return ALL playlists:
+Once we have identified the playlists we can also retrieve the videos using `get_playlist_items()`. By default it retrieves a max of 50 playlists. Setting `max_results` to any value larger than that will return ALL playlists:
 
 ```{r}
 vids <- get_playlist_items(filter=c(playlist_id=playlistId),max_results=100)
@@ -114,7 +114,7 @@ First information:
 video_details <- map(vid_ids, get_video_details)
 ```
 
-Second, comments
+Second, comments:
 
 ```{r}
 video_comments <- map_df(vids_id, get_all_comments)
